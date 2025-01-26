@@ -4,7 +4,23 @@ import requests
 from ultralytics import YOLO
 from paddleocr import PaddleOCR
 
+import logging
+logging.getLogger("ppocr").setLevel(logging.WARNING)
+
 API_URL = "http://127.0.0.1:5000/license_plate_from_entrance"
+
+
+def send_license_plate(license_plate):
+    try:
+        last_detection = license_plate.replace(" ", "").replace("-", "").upper()
+        response = requests.post(API_URL, json={'license_plate': last_detection})
+        if response.status_code == 201:
+            print(f"License plate '{last_detection}' sent successfully!")
+
+        else:
+            print(f"Failed to send license plate '{last_detection}': {response.text}")
+    except Exception as e:
+        print(f"Error during API call: {e}")
 
 
 def main():
@@ -18,8 +34,7 @@ def main():
     # Process every n-th frame
     frame_skip_interval = 15
     frame_count = 0
-    last_detection = None  # Track the last detected license plate
-    last_sent_time = time.time()  # Track the time of the last API call
+    last_time = time.time()
 
     # Load YOLO model
     model = YOLO("best_plate_detector_model.pt")
@@ -49,25 +64,24 @@ def main():
                 # Crop the image using the coordinates
                 cropped_img = frame[y1:y2, x1:x2]  # Crop the license plate region
 
+                # Show the binary image
+                # cv2.imshow("Binary Image", binary)
+
                 # Perform OCR
                 result = ocr.ocr(cropped_img, cls=True)
 
                 if result and result[0]:
                     detected_text = result[0][0][1][0]
 
-                    if detected_text and (detected_text != last_detection or time.time() - last_sent_time >= 4) and len(
-                            detected_text) >= 7 and detected_text[0].isalpha():
-                        try:
-                            detected_text = detected_text.replace(" ", "").replace("-", "").upper()
-                            response = requests.post(API_URL, json={'license_plate': detected_text})
-                            if response.status_code == 201:
-                                print(f"License plate '{detected_text}' sent successfully!")
-                                last_detection = detected_text  # Update the last detected plate
-                                last_sent_time = time.time()  # Update the last sent time
-                            else:
-                                print(f"Failed to send license plate '{detected_text}': {response.text}")
-                        except Exception as e:
-                            print(f"Error during API call: {e}")
+                    # Ensure the license plate is valid and not a duplicate
+                    if detected_text  and len(detected_text) >= 7 and detected_text[0].isalpha():
+                        # Check if enough time has passed to send license plate (5 seconds)
+                        if time.time() - last_time >= 3:
+                            last_time = time.time()
+                            send_license_plate(detected_text)
+
+        # Display the frame
+        cv2.imshow("IP Camera", frame)
 
         # Break the loop when the user presses 'Esc'
         if cv2.waitKey(1) & 0xFF == 27:
