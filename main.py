@@ -24,7 +24,8 @@ def send_license_plate(license_plate):
 
 
 def main():
-    ip_camera_url = "http://192.168.0.83:8080/video"
+    # ip_camera_url = "http://192.168.0.83:8080/video"
+    ip_camera_url = "../data/rejestracje.mp4"
     cap = cv2.VideoCapture(ip_camera_url)
 
     if not cap.isOpened():
